@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>MARVERSE Arena</title>
+
+<style>
+body {
+  margin:0;
+  font-family:Arial;
+  text-align:center;
+  background:linear-gradient(45deg,#0f0c29,#302b63,#24243e);
+  color:white;
+}
+
+button {
+  padding:12px 25px;
+  margin:8px;
+  font-size:16px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  background:linear-gradient(45deg,#ff00cc,#3333ff);
+  color:white;
+  box-shadow:0 0 15px #ff00cc;
+}
+
+#energyBar {
+  width:300px;
+  height:20px;
+  background:#222;
+  margin:10px auto;
+  border-radius:10px;
+  overflow:hidden;
+}
+
+#energyFill {
+  height:100%;
+  background:linear-gradient(90deg,#00ffcc,#00ccff);
+  width:100%;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🔥 MARVERSE 🔥</h1>
+
+<h2>Score: <span id="score">0</span></h2>
+<h3>Level: <span id="level">1</span></h3>
+<h3>XP: <span id="xp">0</span></h3>
+
+<div id="energyBar">
+  <div id="energyFill"></div>
+</div>
+
+<button onclick="clickButton()">CLICK</button>
+
+<h2>⚡ Powers ⚡</h2>
+<button onclick="activateXPStorm()">XP Storm</button>
+<button onclick="activateClone()">Clone Clicker</button>
+<button onclick="activateRage()">Rage Mode</button>
+
+<hr>
+
+<h2>⚔ PvP Arena ⚔</h2>
+<button onclick="findMatch()">Find Match</button>
+<button onclick="pvpClick()">Battle Click</button>
+
+<h3>Status: <span id="battleStatus"></span></h3>
+<h3>Your Score: <span id="yourScore">0</span></h3>
+<h3>Opponent Score: <span id="opponentScore">0</span></h3>
+<h3>Time Left: <span id="timer">30</span></h3>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, addDoc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBPE7bdGfbl37Btraqg0v9x0ZTP9SBucvA",
+  authDomain: "mar-mega-app.firebaseapp.com",
+  projectId: "mar-mega-app",
+  storageBucket: "mar-mega-app.firebasestorage.app",
+  messagingSenderId: "497388633227",
+  appId: "1:497388633227:web:43b6dd756ca98a2bc0688e"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let userId;
+let score = 0;
+let level = 1;
+let xp = 0;
+let clickPower = 1;
+
+let energy = 100;
+let maxEnergy = 100;
+
+let multipliers = { xp:1, click:1 };
+
+let roomId = null;
+let isPlayer1 = false;
+let battleActive = false;
+let opponentScore = 0;
+
+signInAnonymously(auth).then(user => {
+  userId = user.user.uid;
+  loadData();
+});
+
+async function saveData() {
+  await setDoc(doc(db,"players",userId),{score,level,xp,clickPower});
+}
+
+async function loadData() {
+  const snap = await getDoc(doc(db,"players",userId));
+  if(snap.exists()){
+    const d = snap.data();
+    score=d.score; level=d.level; xp=d.xp; clickPower=d.clickPower;
+  }
+  updateUI();
+}
+
+window.clickButton = function(){
+  score += clickPower*multipliers.click;
+  xp += 10*multipliers.xp;
+
+  if(xp >= level*100){
+    xp=0;
+    level++;
+  }
+
+  updateUI();
+  saveData();
+}
+
+setInterval(()=>{
+  if(energy<maxEnergy){
+    energy+=1;
+    updateUI();
+  }
+},100);
+
+window.activateXPStorm=function(){
+  if(energy<40)return;
+  energy-=40;
+  multipliers.xp=5;
+  setTimeout(()=>{multipliers.xp=1;},10000);
+}
+
+window.activateClone=function(){
+  if(energy<30)return;
+  energy-=30;
+  multipliers.click=2;
+  setTimeout(()=>{multipliers.click=1;},10000);
+}
+
+window.activateRage=function(){
+  if(energy<50)return;
+  energy-=50;
+  clickPower+=10;
+  setTimeout(()=>{clickPower-=10;},8000);
+}
+
+function updateUI(){
+  document.getElementById("score").innerText=score;
+  document.getElementById("level").innerText=level;
+  document.getElementById("xp").innerText=xp;
+  document.getElementById("energyFill").style.width=(energy/maxEnergy*100)+"%";
+}
+
+// ===== PvP =====
+
+window.findMatch=async function(){
+  const roomsRef=collection(db,"rooms");
+  const q=query(roomsRef,where("status","==","waiting"));
+  const snap=await getDocs(q);
+
+  if(!snap.empty){
+    const room=snap.docs[0];
+    roomId=room.id;
+    isPlayer1=false;
+    await updateDoc(doc(db,"rooms",roomId),{
+      player2:userId,
+      status:"active"
+    });
+  }else{
+    const newRoom=await addDoc(collection(db,"rooms"),{
+      player1:userId,
+      player2:null,
+      p1Score:0,
+      p2Score:0,
+      status:"waiting"
+    });
+    roomId=newRoom.id;
+    isPlayer1=true;
+  }
+
+  listenRoom();
+}
+
+function listenRoom(){
+  const ref=doc(db,"rooms",roomId);
+  onSnapshot(ref,(snap)=>{
+    const d=snap.data();
+    if(!d)return;
+
+    if(d.status==="active" && !battleActive){
+      startBattle();
+    }
+
+    opponentScore=isPlayer1?d.p2Score:d.p1Score;
+    document.getElementById("opponentScore").innerText=opponentScore;
+  });
+}
+
+function startBattle(){
+  battleActive=true;
+  score=0;
+  opponentScore=0;
+  document.getElementById("battleStatus").innerText="BATTLE START!";
+  startTimer();
+}
+
+window.pvpClick=async function(){
+  if(!battleActive)return;
+  score++;
+
+  const update=isPlayer1?{p1Score:score}:{p2Score:score};
+  await updateDoc(doc(db,"rooms",roomId),update);
+
+  document.getElementById("yourScore").innerText=score;
+
+  if(score>=100)endBattle();
+}
+
+function startTimer(){
+  let timeLeft=30;
+  document.getElementById("timer").innerText=timeLeft;
+
+  const t=setInterval(()=>{
+    timeLeft--;
+    document.getElementById("timer").innerText=timeLeft;
+
+    if(timeLeft<=0){
+      clearInterval(t);
+      endBattle();
+    }
+  },1000);
+}
+
+function endBattle(){
+  battleActive=false;
+
+  let result="DRAW";
+  if(score>opponentScore)result="YOU WIN!";
+  if(score<opponentScore)result="YOU LOSE!";
+
+  document.getElementById("battleStatus").innerText=result;
+}
+
+</script>
+</body>
+</html>
