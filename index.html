@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mar's Mega Web App</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: black;
+            color: white;
+            transition: 0.4s;
+        }
+
+        header {
+            background: #111;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        header button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            background: #333;
+            color: white;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        header button:hover {
+            background: #555;
+        }
+
+        section {
+            display: none;
+            padding: 40px;
+            text-align: center;
+        }
+
+        section.active {
+            display: block;
+        }
+
+        button.main {
+            padding: 12px 25px;
+            font-size: 18px;
+            margin-top: 15px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+        }
+
+        #clickBtn {
+            background: lime;
+            color: black;
+            transition: 0.2s;
+        }
+
+        #clickBtn:hover {
+            transform: scale(1.15);
+        }
+
+        input {
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            margin-top: 10px;
+        }
+
+        #messageBox {
+            margin-top: 15px;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <button onclick="showSection('home')">Home</button>
+    <button onclick="showSection('game')">Game</button>
+    <button onclick="showSection('tools')">Tools</button>
+</header>
+
+<!-- HOME -->
+<section id="home" class="active">
+    <h1>🔥 Mar's Mega Web App 🔥</h1>
+    <p>Built by Mar. Future 10K coder 💰</p>
+</section>
+
+<!-- GAME -->
+<section id="game">
+    <h2>Clicker Game</h2>
+    <div id="score">Score: 0</div>
+    <div id="level">Level: 1</div>
+    <div id="achievements">Achievements: None</div>
+    <button id="clickBtn" class="main" onclick="addScore()">CLICK ME</button>
+</section>
+
+<!-- TOOLS -->
+<section id="tools">
+    <h2>Tools</h2>
+
+    <h3>🎨 Random Color</h3>
+    <button class="main" onclick="randomColor()">Change Background</button>
+
+    <h3>✍️ Change Name</h3>
+    <input type="text" id="nameInput" placeholder="Enter your name">
+    <br>
+    <button class="main" onclick="changeName()">Update Name</button>
+    <div id="nameDisplay"></div>
+
+    <h3>🧠 Fun Message</h3>
+    <button class="main" onclick="randomMessage()">Generate Message</button>
+    <div id="messageBox"></div>
+</section>
+
+<script>
+
+function showSection(id) {
+    document.querySelectorAll("section").forEach(sec => sec.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+}
+
+/* ================= GAME ================= */
+
+function loadGame() {
+    let score = parseInt(localStorage.getItem("score")) || 0;
+    let level = parseInt(localStorage.getItem("level")) || 1;
+    let achievements = JSON.parse(localStorage.getItem("achievements")) || [];
+    updateGame(score, level, achievements);
+}
+
+function addScore() {
+    let score = parseInt(localStorage.getItem("score")) || 0;
+    let level = parseInt(localStorage.getItem("level")) || 1;
+    let achievements = JSON.parse(localStorage.getItem("achievements")) || [];
+
+    score++;
+
+    if(score % 10 === 0) {
+        level++;
+        achievements.push("Reached Level " + level);
+    }
+
+    localStorage.setItem("score", score);
+    localStorage.setItem("level", level);
+    localStorage.setItem("achievements", JSON.stringify(achievements));
+
+    updateGame(score, level, achievements);
+}
+
+function updateGame(score, level, achievements) {
+    document.getElementById("score").innerText = "Score: " + score;
+    document.getElementById("level").innerText = "Level: " + level;
+    document.getElementById("achievements").innerText =
+        "Achievements: " + (achievements.length > 0 ? achievements.join(", ") : "None");
+}
+
+/* ================= TOOLS ================= */
+
+function randomColor() {
+    const colors = ["red","blue","green","purple","orange","pink","teal","gold"];
+    const random = colors[Math.floor(Math.random() * colors.length)];
+    document.body.style.backgroundColor = random;
+}
+
+function changeName() {
+    let name = document.getElementById("nameInput").value;
+    if(name.trim() !== "") {
+        localStorage.setItem("customName", name);
+        document.getElementById("nameDisplay").innerText = "Welcome, " + name + "!";
+    }
+}
+
+function randomMessage() {
+    const messages = [
+        "You're leveling up in real life 🚀",
+        "Future 10K coder loading...",
+        "Consistency = money 💰",
+        "You’re building skills most adults don’t have.",
+        "Stay disciplined. Stay dangerous."
+    ];
+    const random = messages[Math.floor(Math.random() * messages.length)];
+    document.getElementById("messageBox").innerText = random;
+}
+
+window.onload = function() {
+    loadGame();
+    let savedName = localStorage.getItem("customName");
+    if(savedName) {
+        document.getElementById("nameDisplay").innerText = "Welcome, " + savedName + "!";
+    }
+};
+
+</script>
+
+</body>
+</html>
