@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mar's Pro Multiplayer Game + Shop</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #000000, #1a1a1a);
+      color: white;
+      text-align: center;
+      transition: 0.3s;
+    }
+    header {
+      padding: 20px;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    button {
+      padding: 12px 20px;
+      margin: 10px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      transition: 0.2s;
+    }
+    button:hover {
+      transform: scale(1.1);
+    }
+    #loginBtn {
+      background: #4285F4;
+      color: white;
+    }
+    #clickBtn {
+      background: lime;
+      color: black;
+      font-size: 20px;
+    }
+    #upgradeBtn, .shopBtn {
+      background: orange;
+      color: black;
+    }
+    #leaderboard {
+      margin-top: 20px;
+      background: #111;
+      padding: 15px;
+      border-radius: 12px;
+      display: inline-block;
+      min-width: 250px;
+    }
+    .card {
+      margin-top: 20px;
+    }
+    #shop {
+      margin-top: 20px;
+      padding: 15px;
+      background: #222;
+      border-radius: 12px;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+
+<header>🔥 Mar's Pro Multiplayer Game + Shop 🔥</header>
+
+<button id="loginBtn" onclick="googleLogin()">Login with Google</button>
+
+<div class="card">
+  <h2 id="welcome"></h2>
+  <h3>Score: <span id="score">0</span></h3>
+  <button id="clickBtn" onclick="addScore()">CLICK</button>
+  <br>
+  <button id="upgradeBtn" onclick="buyUpgrade()">Buy 2x Click (Cost: 20)</button>
+  <button class="shopBtn" onclick="buyTriple()">Buy 3x Click (Cost: 50)</button>
+  <h4 id="upgradeStatus"></h4>
+</div>
+
+<div id="shop">
+  <h3>Mini Shop / Cosmetics</h3>
+  <button class="shopBtn" onclick="buyButtonColor()">Change Button Color (Cost: 30)</button>
+  <button class="shopBtn" onclick="buyBackground()">Change Background (Cost: 50)</button>
+  <h4 id="shopStatus"></h4>
+</div>
+
+<h2>🏆 Live Leaderboard</h2>
+<div id="leaderboard"></div>
+
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBPE7bdGfbl37Btraqg0v9x0ZTP9SBucvA",
+    authDomain: "mar-mega-app.firebaseapp.com",
+    projectId: "mar-mega-app",
+    storageBucket: "mar-mega-app.firebasestorage.app",
+    messagingSenderId: "497388633227",
+    appId: "1:497388633227:web:43b6dd756ca98a2bc0688e"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  let currentUser = null;
+  let score = 0;
+  let multiplier = 1;
+  let inventory = {
+    buttonColor: false,
+    background: false
+  };
+
+  function googleLogin() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider);
+  }
+
+  auth.onAuthStateChanged(async (user) => {
+    if(user) {
+      currentUser = user;
+      document.getElementById("welcome").innerText = "Welcome, " + user.displayName;
+      await loadUserData();
+    }
+  });
+
+  async function loadUserData() {
+    const docRef = db.collection("players").doc(currentUser.uid);
+    const docSnap = await docRef.get();
+
+    if(docSnap.exists) {
+      const data = docSnap.data();
+      score = data.score || 0;
+      multiplier = data.multiplier || 1;
+      inventory = data.inventory || { buttonColor:false, background:false };
+    } else {
+      await docRef.set({
+        name: currentUser.displayName,
+        score: 0,
+        multiplier: 1,
+        inventory: { buttonColor:false, background:false }
+      });
+    }
+
+    applyCosmetics();
+    updateUI();
+  }
+
+  function updateUI() {
+    document.getElementById("score").innerText = score;
+    document.getElementById("upgradeStatus").innerText = multiplier > 1 ? `${multiplier}x Click Active!` : "";
+    document.getElementById("shopStatus").innerText = inventory.buttonColor || inventory.background ? "Cosmetics Active!" : "";
+  }
+
+  function applyCosmetics() {
+    if(inventory.buttonColor) document.getElementById("clickBtn").style.backgroundColor = "cyan";
+    if(inventory.background) document.body.style.background = "linear-gradient(135deg, purple, black)";
+  }
+
+  async function addScore() {
+    if(!currentUser) return alert("Login first!");
+    score += multiplier;
+    await saveUser();
+    updateUI();
+  }
+
+  async function buyUpgrade() {
+    if(score >= 20 && multiplier === 1) {
+      score -= 20;
+      multiplier = 2;
+      await saveUser();
+      updateUI();
+    }
+  }
+
+  async function buyTriple() {
+    if(score >= 50 && multiplier < 3) {
+      score -= 50;
+      multiplier = 3;
+      await saveUser();
+      updateUI();
+    }
+  }
+
+  async function buyButtonColor() {
+    if(score >= 30 && !inventory.buttonColor) {
+      score -= 30;
+      inventory.buttonColor = true;
+      applyCosmetics();
+      await saveUser();
+      updateUI();
+    }
+  }
+
+  async function buyBackground() {
+    if(score >= 50 && !inventory.background) {
+      score -= 50;
+      inventory.background = true;
+      applyCosmetics();
+      await saveUser();
+      updateUI();
+    }
+  }
+
+  async function saveUser() {
+    await db.collection("players").doc(currentUser.uid).set({
+      name: currentUser.displayName,
+      score: score,
+      multiplier: multiplier,
+      inventory: inventory
+    }, { merge: true });
+  }
+
+  // Live leaderboard
+  db.collection("players").onSnapshot((snapshot) => {
+    let players = [];
+    snapshot.forEach(doc => {
+      players.push({ name: doc.data().name, score: doc.data().score });
+    });
+    players.sort((a,b)=>b.score-a.score);
+
+    let html = "";
+    players.slice(0,10).forEach(p => html += `<div>${p.name}: ${p.score}</div>`);
+    document.getElementById("leaderboard").innerHTML = html;
+  });
+
+</script>
+
+</body>
+</html>
