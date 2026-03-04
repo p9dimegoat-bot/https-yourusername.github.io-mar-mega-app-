@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>MAR PvP Test</title>
+<style>
+body {
+  font-family: Arial;
+  text-align: center;
+  background: #111;
+  color: white;
+}
+button {
+  padding: 10px 20px;
+  margin: 10px;
+  font-size: 18px;
+}
+</style>
+</head>
+<body>
+
+<h1>⚔ MAR PvP TEST ⚔</h1>
+
+<button onclick="createRoom()">Create Room</button>
+<button onclick="joinRoom()">Join Room</button>
+<br>
+<input id="roomInput" placeholder="Enter Room ID">
+
+<h2 id="status"></h2>
+
+<h3>Your Score: <span id="yourScore">0</span></h3>
+<h3>Opponent Score: <span id="opponentScore">0</span></h3>
+<h3>Time Left: <span id="timer">30</span></h3>
+
+<button onclick="battleClick()">CLICK</button>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBPE7bdGfbl37Btraqg0v9x0ZTP9SBucvA",
+  authDomain: "mar-mega-app.firebaseapp.com",
+  projectId: "mar-mega-app",
+  storageBucket: "mar-mega-app.firebasestorage.app",
+  messagingSenderId: "497388633227",
+  appId: "1:497388633227:web:43b6dd756ca98a2bc0688e"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let userId;
+let roomId = null;
+let isHost = false;
+let yourScore = 0;
+let opponentScore = 0;
+let battleActive = false;
+
+signInAnonymously(auth).then(user=>{
+  userId = user.user.uid;
+});
+
+window.createRoom = async function() {
+  roomId = Math.random().toString(36).substring(2,8);
+  isHost = true;
+
+  await setDoc(doc(db,"rooms",roomId),{
+    host:userId,
+    guest:null,
+    hostScore:0,
+    guestScore:0,
+    status:"waiting"
+  });
+
+  document.getElementById("status").innerText = "Room Created: " + roomId;
+  listenRoom();
+}
+
+window.joinRoom = async function() {
+  roomId = document.getElementById("roomInput").value;
+  isHost = false;
+
+  await updateDoc(doc(db,"rooms",roomId),{
+    guest:userId,
+    status:"active"
+  });
+
+  document.getElementById("status").innerText = "Joined Room!";
+  listenRoom();
+}
+
+function listenRoom(){
+  onSnapshot(doc(db,"rooms",roomId),(snap)=>{
+    const data = snap.data();
+    if(!data) return;
+
+    if(data.status==="active" && !battleActive){
+      startBattle();
+    }
+
+    opponentScore = isHost ? data.guestScore : data.hostScore;
+    document.getElementById("opponentScore").innerText = opponentScore;
+  });
+}
+
+function startBattle(){
+  battleActive = true;
+  yourScore = 0;
+  opponentScore = 0;
+  document.getElementById("status").innerText = "⚔ BATTLE START!";
+  startTimer();
+}
+
+window.battleClick = async function(){
+  if(!battleActive) return;
+
+  yourScore++;
+  document.getElementById("yourScore").innerText = yourScore;
+
+  const update = isHost
+    ? { hostScore: yourScore }
+    : { guestScore: yourScore };
+
+  await updateDoc(doc(db,"rooms",roomId), update);
+
+  if(yourScore>=50){
+    endBattle();
+  }
+}
+
+function startTimer(){
+  let timeLeft = 30;
+  document.getElementById("timer").innerText = timeLeft;
+
+  const timer = setInterval(()=>{
+    timeLeft--;
+    document.getElementById("timer").innerText = timeLeft;
+
+    if(timeLeft<=0){
+      clearInterval(timer);
+      endBattle();
+    }
+  },1000);
+}
+
+function endBattle(){
+  battleActive=false;
+
+  let result="DRAW";
+  if(yourScore>opponentScore) result="YOU WIN!";
+  if(yourScore<opponentScore) result="YOU LOSE!";
+
+  document.getElementById("status").innerText=result;
+}
+
+</script>
+</body>
+</html>
